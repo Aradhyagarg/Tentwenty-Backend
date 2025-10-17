@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, validationResult } = require('express-validator');
 const Flight = require('../models/Flight');
 const auth = require('../middleware/auth');
+const Booking = require('../models/Booking');
 
 router.get('/search', [
   auth,
@@ -89,6 +90,47 @@ router.get('/search', [
     });
   }
 });
+
+router.get('/:id/booked-seats', auth, async (req, res) => {
+    try {
+      const flightId = req.params.id;
+
+      const bookings = await Booking.find({
+        flight: flightId,
+        bookingStatus: 'confirmed'
+      }).select('passengers');
+
+      const bookedSeats = bookings.flatMap(booking => 
+        booking.passengers.map(passenger => passenger.seatNumber)
+      );
+
+      const uniqueBookedSeats = [...new Set(bookedSeats)];
+  
+      res.status(200).json({
+        success: true,
+        data: {
+          flightId,
+          bookedSeats: uniqueBookedSeats,
+          totalBooked: uniqueBookedSeats.length
+        }
+      });
+    } catch (error) {
+      console.error('Get Booked Seats Error:', error);
+      
+      if (error.kind === 'ObjectId') {
+        return res.status(404).json({
+          success: false,
+          message: 'Flight not found'
+        });
+      }
+  
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching booked seats',
+        error: error.message
+      });
+    }
+  });  
 
 router.get('/:id', auth, async (req, res) => {
   try {
